@@ -1,0 +1,17 @@
+---
+title: "AI Hallucination Cases"
+format: html
+---
+
+Group members: Ishita Jain, [partner name]
+
+GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
+
+The data come from the AI Hallucination Cases Database maintained by Damien Charlotin. This file is the shared starter for the group analysis. Develop one research question together, then add the exploratory analysis and model here. Before editing, pull. After a checkpoint, pull again, then push. Avoid editing the same section at the same time.
+
+```{r}
+library(tidyverse)
+
+cases <- read_csv("data/hallucination_cases.csv")
+glimpse(cases)
+```
