@@ -3,7 +3,7 @@ title: "AI Hallucination Cases"
 format: html
 ---
 
-Group members: Ishita Jain, [partner name]
+Group members: Ishita Jain, Abby Minin, Ahlam
 
 GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
 
