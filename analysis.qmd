@@ -15,7 +15,7 @@ Partner 1: Ishita Jain — research question, exploratory analysis, decision tre
 Partner 2: random forest, comparison, conclusions (name to be confirmed).
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 7, fig.height = 4.5)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 9, fig.height = 5.5, dpi = 144)
 if (dir.exists("../.hw5-R-library")) .libPaths(c(normalizePath("../.hw5-R-library"), .libPaths()))
 library(tidyverse)
 library(rpart)
@@ -108,6 +108,102 @@ test cases. Partner 2 must reuse these processed sets and `model_formula`.
 Outcome text, monetary penalties, and case narratives are excluded because
 they could reveal the response; names and source links are also excluded.
 This is a retrospective random holdout, not a forecast of future cases.
+
+## Partner 1: Decision tree
+
+```{r}
+set.seed(154)
+tree_full <- rpart(model_formula, data = train, method = "class",
+                   parms = list(split = "gini"),
+                   control = rpart.control(cp = 0.001, xval = 10))
+printcp(tree_full)
+best_cp <- tree_full$cptable[which.min(tree_full$cptable[, "xerror"]), "CP"]
+tree_cv <- prune(tree_full, cp = best_cp)
+# Prespecified exploratory tree; test data do not choose its settings.
+tree_model <- tree_full
+rpart.plot(tree_model, extra = 104, fallen.leaves = TRUE)
+tree_model
+leaf_count <- sum(tree_model$frame$var == "<leaf>")
+root_variable <- tree_model$frame$var[1]
+if (root_variable != "<leaf>") {
+  root_paths <- path.rpart(tree_model, nodes = c(2, 3), print.it = FALSE)
+  knitr::kable(data.frame(
+    Rule = vapply(root_paths, function(x) tail(x, 1), character(1)),
+    Cases = tree_model$frame[c("2", "3"), "n"],
+    Yes_probability = tree_model$frame$yval2[match(c("2", "3"), rownames(tree_model$frame)), 5]), digits = 3)
+}
+leaf_id <- as.integer(rownames(tree_model$frame)[which(tree_model$frame$var == "<leaf>")[1]])
+leaf_path <- path.rpart(tree_model, nodes = leaf_id, print.it = FALSE)[[1]]
+leaf_row <- match(as.character(leaf_id), rownames(tree_model$frame))
+leaf_class <- levels(train$sanction)[tree_model$frame$yval[leaf_row]]
+leaf_probability <- tree_model$frame$yval2[leaf_row, 5]
+```
+
+The tree reduces Gini impurity to create more homogeneous sanction groups.
+The exploratory tree uses a prespecified CP of 0.001 and has `r leaf_count`
+terminal nodes. Training-only ten-fold cross-validation instead selects
+CP = `r signif(best_cp, 4)`, yielding
+`r sum(tree_cv$frame$var == "<leaf>")` terminal nodes. Its preference for a
+single-node tree shows that these splits do not improve cross-validated
+overall error enough to justify their complexity. We interpret the larger
+tree as exploratory; the test set does not choose its settings.
+`r if (root_variable == "<leaf>") "Cross-validation selected no splits; the tree predicts the majority class for every case." else paste0("The first split uses ", root_variable, ". The table shows its routing rules and the training sanction proportions on each side. The child with the larger Yes probability records sanctions more often.")`
+
+One terminal node follows
+`r if (length(leaf_path) > 1) paste(leaf_path[-1], collapse = "; then ") else "all cases at the root"`.
+It predicts `r leaf_class`, with estimated Yes probability
+`r round(leaf_probability, 3)`. This is a training-node proportion, not
+certainty about an individual case.
+
+```{r}
+if (length(tree_full$variable.importance)) {
+  vi <- sort(tree_full$variable.importance, decreasing = TRUE)
+  knitr::kable(data.frame(Predictor = names(vi), Importance = as.numeric(vi)), digits = 2)
+}
+```
+
+Importance values from the candidate tree measure split improvements,
+including surrogate contributions. They have no sign and are not causal effects.
+
+## Partner 1: Held-out performance
+
+```{r}
+classification_metrics <- function(prediction, actual) {
+  cm <- table(Predicted = factor(prediction, levels = c("No", "Yes")),
+              Actual = factor(actual, levels = c("No", "Yes")))
+  sensitivity <- cm["Yes", "Yes"] / sum(cm[, "Yes"])
+  specificity <- cm["No", "No"] / sum(cm[, "No"])
+  c(Accuracy = sum(diag(cm)) / sum(cm), Error = 1 - sum(diag(cm)) / sum(cm),
+    Sensitivity = sensitivity, Specificity = specificity,
+    Balanced_accuracy = mean(c(sensitivity, specificity)))
+}
+tree_prob <- predict(tree_model, test, type = "prob")[, "Yes"]
+tree_class <- factor(ifelse(tree_prob >= 0.5, "Yes", "No"), levels = c("No", "Yes"))
+tree_cm <- table(Predicted = tree_class, Actual = test$sanction)
+tree_cm
+tree_metrics <- classification_metrics(tree_class, test$sanction)
+baseline_metrics <- classification_metrics(rep("No", nrow(test)), test$sanction)
+knitr::kable(rbind(Decision_tree = tree_metrics, Always_No = baseline_metrics), digits = 3)
+```
+
+At a 0.5 Yes-probability cutoff, test accuracy is
+`r round(100 * tree_metrics["Accuracy"], 2)`%, versus
+`r round(100 * baseline_metrics["Accuracy"], 2)`% for always predicting No.
+Sensitivity is `r round(100 * tree_metrics["Sensitivity"], 2)`%: the proportion
+of recorded Yes cases correctly identified. Specificity is
+`r round(100 * tree_metrics["Specificity"], 2)`%, the proportion of recorded
+No cases correctly identified. Balanced accuracy is
+`r round(100 * tree_metrics["Balanced_accuracy"], 2)`%, giving both classes equal weight.
+
+The cross-validation result favors the majority-class baseline over a
+complex tree, so the exploratory splits should not be treated as a validated
+improvement. The confusion matrix and sensitivity are essential because predicting No
+can yield high accuracy. The tree gives readable rules, but rare positives
+and small leaves can limit reliable detection. Reporting practices,
+different jurisdictional rules, and later changes in outcomes limit these
+results. Related cases or repeated parties can make a random holdout more
+optimistic than prediction for entirely new parties. These results describe
+this database, not sanction rates among all filings or causal effects of AI tools.
 
 ## Partner 2: Random forest
 
