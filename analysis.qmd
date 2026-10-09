@@ -41,9 +41,13 @@ ggplot(cases, aes(x = `Professional Sanction`)) +
 ```{r}
 
 #Statistical Model
-model <- glm(n ~ year, data = yearly, family = poisson)
+model <- glm(n ~ year, data = cases, family = poisson)
 summary(model)
 exp(coef(model))
+
+#Second Statistical Model
+model2 <- glm(n ~ year, data = cases, family = binomial)
+summary(model)
 ```
 
 
