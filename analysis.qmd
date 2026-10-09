@@ -3,7 +3,11 @@ title: "AI Hallucination Cases"
 format: html
 ---
 
-Group members: Ishita Jain, Abby Minin, Ahlam
+<<<<<<< HEAD
+=======
+Group members: Ishita Jain, Ahlam Negash, Abigail Minin
+Reaserch Question: Has the number of documented AI hallucination court cases increased over time?
+>>>>>>> f0c72eb2406493692f5a4d1523b5f41370e82f84
 
 GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
 
@@ -15,3 +19,35 @@ library(tidyverse)
 cases <- read_csv("data/hallucination_cases.csv")
 glimpse(cases)
 ```
+
+```{r}
+#Data Visualization 1 
+ggplot(cases, aes(x = `Party(ies)`)) +
+  geom_bar() +
+  coord_flip() +
+  labs(x = "Party", y = "Number of cases", title = "Cases by party")
+```
+
+```{r}
+#Data Visualization 2
+ggplot(cases, aes(x = `Legal Field Primary`)) +
+  geom_bar() +
+  coord_flip() +
+  labs(x = "Legal field", y = "Number of cases", title = "Cases by legal field")
+```
+```{r}
+#Data Visualization 3
+ggplot(cases, aes(x = `Professional Sanction`)) +
+  geom_bar() +
+  labs(x = "Professional sanction", y = "Number of cases", title = "Cases by professional sanction")
+```
+```{r}
+
+#Statistical Model
+model <- glm(n ~ year, data = yearly, family = poisson)
+summary(model)
+exp(coef(model))
+```
+
+
+
