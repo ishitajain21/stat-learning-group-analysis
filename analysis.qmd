@@ -39,15 +39,55 @@ ggplot(cases, aes(x = `Professional Sanction`)) +
   labs(x = "Professional sanction", y = "Number of cases", title = "Cases by professional sanction")
 ```
 ```{r}
+library(dplyr)
+library(lubridate)
+
+cases <- cases %>%
+  mutate(Month = floor_date(as.Date(Date), unit = "month"))
+
+monthly_counts <- cases %>%
+  count(Month, name = "n") 
+
+MonthlyModel <- glm(n ~ Month, data = monthly_counts)
+summary(MonthlyModel)
+
+ggplot(monthly_counts, aes(x = Month, y = n)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Monthly Cases Over Time (Linear Regression)",
+    x = "Month",
+    y = "Number of Cases"
+  ) +
+  theme_minimal()
+
+PMonthlyModel <- glm(n ~ Month, data = monthly_counts, family=poisson)
+summary(PMonthlyModel)
+
+monthly_counts$predicted <- predict(
+  PMonthlyModel,
+  newdata = monthly_counts,
+  type = "response"
+)
+
+ggplot(monthly_counts, aes(x = Month, y = n)) +
+  geom_point() +
+  geom_line(
+    aes(y = predicted),
+    linewidth = 1
+  ) +
+  labs(
+    title = "Monthly Cases Over Time (Poisson Regression)",
+    x = "Month",
+    y = "Number of Cases"
+  ) +
+  theme_minimal()
+
 
 #Statistical Model
-model <- glm(n ~ year, data = cases, family = poisson)
-summary(model)
-exp(coef(model))
-
-#Second Statistical Model
-model2 <- glm(n ~ year, data = cases, family = binomial)
-summary(model)
+#model <- glm(n ~ Month, data = cases, family = poisson)
+#summary(model)
+#exp(coef(model))
 ```
 
 
