@@ -4,7 +4,7 @@ format: html
 ---
 
 Group members: Ishita Jain, Ahlam Negash, Abigail Minin
-Reasearch Question: Has the number of documented AI hallucination court cases increased over time?
+Research Question: Has the number of documented AI hallucination court cases increased over time?
 
 GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
 
