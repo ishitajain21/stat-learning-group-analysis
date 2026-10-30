@@ -131,8 +131,16 @@ knitr::kable(rf_metrics, digits = 3, caption = "Test Performance")
 # Variable importance
 varImpPlot(rf_model, main = "Random Forest Variable Importance")
 ```
-One worry about these results is that Sensitivity is very low. This means that the model is not doing well at correctly identifying the cases that do have sanctions. One possible explanation is that there are relatively few cases with sanctions compared to those without. So, the model learns to predict well the cases that don't have sanctions (because these cases constitute the majority of overall cases). 
+One worry about these results is that Sensitivity is very low. 
+This means that the model is not doing well at correctly identifying the cases that do have sanctions. 
+One possible explanation is that there are relatively few cases with sanctions compared to those without. 
+So, the model learns to predict well the cases that don't have sanctions (because these cases constitute the majority of overall cases). 
 
 Comparing the two models:
 
-The accuracy of the decision tree is slightly higher than the random forest (0.926 vs. 0.925), but the difference is so small that it is likely insignificant. The sensitivity of the decision tree is also higher than the random forest (0.109 vs. 0.022). Specificity of the random forest is slightly higher than the decision tree (0.997 vs. 0.991). Overall, it seems like the two models perform very similarly. As a result, it may be recommendable to use the decision tree on account of its noticeably better sensitivity and its simplicity and computational efficiency. One limitation of these models is that the data includes far more cases without sanctions than those with sanctions, so the models predict no sanctions far more than sanctions, exacerbating this difference and causing low sensitivity. 
+The accuracy of the decision tree is slightly higher than the random forest (0.926 vs. 0.925), but the difference is so small that it is likely insignificant. 
+The sensitivity of the decision tree is also higher than the random forest (0.109 vs. 0.022). 
+Specificity of the random forest is slightly higher than the decision tree (0.997 vs. 0.991). 
+Overall, it seems like the two models perform very similarly. 
+As a result, it may be recommendable to use the decision tree on account of its noticeably better sensitivity and its simplicity and computational efficiency. 
+One limitation of these models is that the data includes far more cases without sanctions than those with sanctions, so the models predict no sanctions far more than sanctions, exacerbating this difference and causing low sensitivity. 
