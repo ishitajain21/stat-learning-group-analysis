@@ -91,4 +91,69 @@ ggplot(monthly_counts, aes(x = Month, y = n)) +
 ```
 
 
+```{r}
+cases <- read_csv("data/hallucination_cases.csv")
+knitr::kable(cases |> count(`Professional Sanction`, name = "Cases"))
+model_data <- cases |>
+  filter(`Professional Sanction` %in% c("No", "Yes")) |>
+  transmute(
+    sanction = factor(`Professional Sanction`, levels = c("No", "Yes")),
+    party = case_when(
+      str_detect(str_to_lower(coalesce(`Party(ies)`, "")), "lawyer|prosecutor|defender") ~ "Lawyer involved",
+      str_detect(str_to_lower(coalesce(`Party(ies)`, "")), "pro se") ~ "Pro se litigant",
+      is.na(`Party(ies)`) ~ "Unknown",
+      TRUE ~ "Other party"),
+    jurisdiction = case_when(`State(s)` == "USA" ~ "USA",
+                             is.na(`State(s)`) ~ "Unknown", TRUE ~ "Outside USA"),
+    tool = case_when(str_to_lower(`AI Tool`) == "chatgpt" ~ "ChatGPT",
+                    str_to_lower(`AI Tool`) %in% c("implied", "unidentified") | is.na(`AI Tool`) ~ "Unspecified or implied",
+                    TRUE ~ "Other named tool"),
+    legal_field = coalesce(`Legal Field Primary`, "Unknown"))
+sanction_rate <- mean(model_data$sanction == "Yes")
+ggplot(model_data, aes(sanction)) + geom_bar(fill = "steelblue") +
+  labs(x = "Recorded professional sanction", y = "Cases",
+       title = "Professional sanctions are uncommon") + theme_minimal()
+party_summary <- model_data |> group_by(party) |>
+  summarise(Cases = n(), Yes = sum(sanction == "Yes"),
+            Sanction_rate = mean(sanction == "Yes"), .groups = "drop")
+knitr::kable(party_summary, digits = 3)
+ggplot(party_summary, aes(reorder(party, Sanction_rate), Sanction_rate)) +
+  geom_col(fill = "darkorange") + coord_flip() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Party category", y = "Proportion with sanction",
+       title = "Recorded sanction rates by party type") + theme_minimal()
+```
 
+There are `r nrow(cases)` cases; `r nrow(cases) - nrow(model_data)` are
+excluded for missing or unrecognized responses. Among retained cases,
+`r round(100 * sanction_rate, 2)`% record a sanction. The imbalanced response
+means high accuracy can conceal poor detection of Yes cases.
+The party chart compares rates rather than counts to account for category
+sizes. Lawyer involvement may be informative because professional discipline
+applies to legal professionals. These associations do not establish causation.
+
+## Shared modeling setup
+
+```{r}
+set.seed(154)
+train_id <- sample(seq_len(nrow(model_data)), round(0.7 * nrow(model_data)))
+train <- model_data[train_id, ]
+test <- model_data[-train_id, ]
+# Learn common fields from training data only; group unseen test levels.
+common_fields <- train |> count(legal_field, sort = TRUE) |>
+  slice_head(n = 8) |> pull(legal_field)
+prepare_predictors <- function(d) {
+  d |> mutate(
+    legal_field = factor(ifelse(legal_field %in% common_fields, legal_field, "Other"),
+                         levels = c(common_fields, "Other")),
+    party = factor(party, levels = c("Lawyer involved", "Pro se litigant", "Other party", "Unknown")),
+    jurisdiction = factor(jurisdiction, levels = c("USA", "Outside USA", "Unknown")),
+    tool = factor(tool, levels = c("ChatGPT", "Unspecified or implied", "Other named tool")))
+}
+train <- prepare_predictors(train)
+test <- prepare_predictors(test)
+model_formula <- sanction ~ party + jurisdiction + tool + legal_field
+knitr::kable(data.frame(Set = c("Training", "Test"),
+                       Cases = c(nrow(train), nrow(test)),
+                       Yes_rate = c(mean(train$sanction == "Yes"), mean(test$sanction == "Yes"))), digits = 3)
+```
