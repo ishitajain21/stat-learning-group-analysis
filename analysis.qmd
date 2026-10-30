@@ -3,8 +3,7 @@ title: "AI Hallucination Cases"
 format: html
 ---
 
-Group members: Ishita Jain, Ahlam Negash, Abigail Minin
-Research Question: Has the number of documented AI hallucination court cases increased over time?
+Group members: Ishita Jain and Abby Minin
 
 GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
 
@@ -14,81 +13,134 @@ The data come from the AI Hallucination Cases Database maintained by Damien Char
 library(tidyverse)
 
 cases <- read_csv("data/hallucination_cases.csv")
-glimpse(cases)
 ```
 
+
 ```{r}
-#Data Visualization 1 
-ggplot(cases, aes(x = `Party(ies)`)) +
-  geom_bar() +
-  coord_flip() +
-  labs(x = "Party", y = "Number of cases", title = "Cases by party")
+knitr::kable(cases |> count(`Professional Sanction`, name = "Cases"))
+model_data <- cases |>
+  filter(`Professional Sanction` %in% c("No", "Yes")) |>
+  transmute(
+    sanction = factor(`Professional Sanction`, levels = c("No", "Yes")),
+    party = case_when(
+      str_detect(str_to_lower(coalesce(`Party(ies)`, "")), "lawyer|prosecutor|defender") ~ "Lawyer involved",
+      str_detect(str_to_lower(coalesce(`Party(ies)`, "")), "pro se") ~ "Pro se litigant",
+      is.na(`Party(ies)`) ~ "Unknown",
+      TRUE ~ "Other party"),
+    jurisdiction = case_when(`State(s)` == "USA" ~ "USA",
+                             is.na(`State(s)`) ~ "Unknown", TRUE ~ "Outside USA"),
+    tool = case_when(str_to_lower(`AI Tool`) == "chatgpt" ~ "ChatGPT",
+                    str_to_lower(`AI Tool`) %in% c("implied", "unidentified") | is.na(`AI Tool`) ~ "Unspecified or implied",
+                    TRUE ~ "Other named tool"),
+    legal_field = coalesce(`Legal Field Primary`, "Unknown"))
+sanction_rate <- mean(model_data$sanction == "Yes")
+ggplot(model_data, aes(sanction)) + geom_bar(fill = "steelblue") +
+  labs(x = "Recorded professional sanction", y = "Cases",
+       title = "Professional sanctions are uncommon") + theme_minimal()
+party_summary <- model_data |> group_by(party) |>
+  summarise(Cases = n(), Yes = sum(sanction == "Yes"),
+            Sanction_rate = mean(sanction == "Yes"), .groups = "drop")
+knitr::kable(party_summary, digits = 3)
+ggplot(party_summary, aes(reorder(party, Sanction_rate), Sanction_rate)) +
+  geom_col(fill = "darkorange") + coord_flip() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Party category", y = "Proportion with sanction",
+       title = "Recorded sanction rates by party type") + theme_minimal()
 ```
 
+There are `r nrow(cases)` cases; `r nrow(cases) - nrow(model_data)` are
+excluded for missing or unrecognized responses. Among retained cases,
+`r round(100 * sanction_rate, 2)`% record a sanction. The imbalanced response
+means high accuracy can conceal poor detection of Yes cases.
+The party chart compares rates rather than counts to account for category
+sizes. Lawyer involvement may be informative because professional discipline
+applies to legal professionals. These associations do not establish causation.
+
+## Shared modeling setup
+
 ```{r}
-#Data Visualization 2
-ggplot(cases, aes(x = `Legal Field Primary`)) +
-  geom_bar() +
-  coord_flip() +
-  labs(x = "Legal field", y = "Number of cases", title = "Cases by legal field")
+set.seed(154)
+train_id <- sample(seq_len(nrow(model_data)), round(0.7 * nrow(model_data)))
+train <- model_data[train_id, ]
+test <- model_data[-train_id, ]
+# Learn common fields from training data only; group unseen test levels.
+common_fields <- train |> count(legal_field, sort = TRUE) |>
+  slice_head(n = 8) |> pull(legal_field)
+prepare_predictors <- function(d) {
+  d |> mutate(
+    legal_field = factor(ifelse(legal_field %in% common_fields, legal_field, "Other"),
+                         levels = c(common_fields, "Other")),
+    party = factor(party, levels = c("Lawyer involved", "Pro se litigant", "Other party", "Unknown")),
+    jurisdiction = factor(jurisdiction, levels = c("USA", "Outside USA", "Unknown")),
+    tool = factor(tool, levels = c("ChatGPT", "Unspecified or implied", "Other named tool")))
+}
+train <- prepare_predictors(train)
+test <- prepare_predictors(test)
+model_formula <- sanction ~ party + jurisdiction + tool + legal_field
+knitr::kable(data.frame(Set = c("Training", "Test"),
+                       Cases = c(nrow(train), nrow(test)),
+                       Yes_rate = c(mean(train$sanction == "Yes"), mean(test$sanction == "Yes"))), digits = 3)
 ```
 ```{r}
-#Data Visualization 3
-ggplot(cases, aes(x = `Professional Sanction`)) +
-  geom_bar() +
-  labs(x = "Professional sanction", y = "Number of cases", title = "Cases by professional sanction")
-```
-```{r}
-library(dplyr)
-library(lubridate)
+library(randomForest)
 
-cases <- cases %>%
-  mutate(Month = floor_date(as.Date(Date), unit = "month"))
-
-monthly_counts <- cases %>%
-  count(Month, name = "n") 
-
-MonthlyModel <- glm(n ~ Month, data = monthly_counts)
-summary(MonthlyModel)
-
-ggplot(monthly_counts, aes(x = Month, y = n)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE) +
-  labs(
-    title = "Monthly Cases Over Time (Linear Regression)",
-    x = "Month",
-    y = "Number of Cases"
-  ) +
-  theme_minimal()
-
-PMonthlyModel <- glm(n ~ Month, data = monthly_counts, family=poisson)
-summary(PMonthlyModel)
-
-monthly_counts$predicted <- predict(
-  PMonthlyModel,
-  newdata = monthly_counts,
-  type = "response"
+# Create random forest model
+set.seed(154)
+rf_model <- randomForest(
+  formula = model_formula,
+  data = train,
+  ntree = 500,
+  mtry = 2,
+  importance = TRUE
 )
 
-ggplot(monthly_counts, aes(x = Month, y = n)) +
-  geom_point() +
-  geom_line(
-    aes(y = predicted),
-    linewidth = 1
-  ) +
-  labs(
-    title = "Monthly Cases Over Time (Poisson Regression)",
-    x = "Month",
-    y = "Number of Cases"
-  ) +
-  theme_minimal()
+# Model results
+print(rf_model)
 
+# Predict sanction probabilities on the test set
+rf_prob <- predict(rf_model, newdata = test, type = "prob")[, "Yes"]
 
-#Statistical Model
-#model <- glm(n ~ Month, data = cases, family = poisson)
-#summary(model)
-#exp(coef(model))
+# Classification using 0.5 probability as the threshold value
+rf_pred <- factor(ifelse(rf_prob >= 0.5, "Yes", "No"), levels = c("No", "Yes"))
+
+# Confusion matrix
+conf_matrix <- table(
+  Actual = test$sanction,
+  Predicted = rf_pred
+)
+
+knitr::kable(conf_matrix, caption = "Confusion Matrix")
+
+accuracy <- mean(rf_pred == test$sanction)
+sensitivity <- sum(rf_pred == "Yes" & test$sanction == "Yes") / sum(test$sanction == "Yes")
+specificity <- sum(rf_pred == "No" & test$sanction == "No") / sum(test$sanction == "No")
+precision <- ifelse(
+  sum(rf_pred == "Yes") == 0,
+  NA,
+  sum(rf_pred == "Yes" & test$sanction == "Yes") /
+    sum(rf_pred == "Yes")
+)
+
+rf_metrics <- data.frame(
+  Metric = c("Accuracy", "Sensitivity", "Specificity", "Precision"),
+  Value = c(accuracy, sensitivity, specificity, precision)
+)
+
+knitr::kable(rf_metrics, digits = 3, caption = "Test Performance")
+
+# Variable importance
+varImpPlot(rf_model, main = "Random Forest Variable Importance")
 ```
+One worry about these results is that Sensitivity is very low. 
+This means that the model is not doing well at correctly identifying the cases that do have sanctions. 
+One possible explanation is that there are relatively few cases with sanctions compared to those without. 
+So, the model learns to predict well the cases that don't have sanctions (because these cases constitute the majority of overall cases). 
 
+Comparing the two models:
 
-
+The accuracy of the decision tree is slightly higher than the random forest (0.926 vs. 0.925), but the difference is so small that it is likely insignificant. 
+The sensitivity of the decision tree is also higher than the random forest (0.109 vs. 0.022). 
+Specificity of the random forest is slightly higher than the decision tree (0.997 vs. 0.991). 
+Overall, it seems like the two models perform very similarly. 
+As a result, it may be recommendable to use the decision tree on account of its noticeably better sensitivity and its simplicity and computational efficiency. 
+One limitation of these models is that the data includes far more cases without sanctions than those with sanctions, so the models predict no sanctions far more than sanctions, exacerbating this difference and causing low sensitivity. 
