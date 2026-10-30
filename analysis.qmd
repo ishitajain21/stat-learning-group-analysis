@@ -130,3 +130,4 @@ knitr::kable(rf_metrics, digits = 3, caption = "Test Performance")
 # Variable importance
 varImpPlot(rf_model, main = "Random Forest Variable Importance")
 ```
+One worry about these results is that Sensitivity is very low. This means that the model is not doing well at correctly identifying the cases that do have sanctions. One possible explanation is that there are relatively few cases with sanctions compared to those without. So, the model learns to predict well the cases that don't have sanctions (because these cases constitute the majority of overall cases). 
