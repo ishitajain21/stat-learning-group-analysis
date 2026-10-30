@@ -84,6 +84,7 @@ knitr::kable(data.frame(Set = c("Training", "Test"),
 ```{r}
 library(randomForest)
 
+# Create random forest model
 set.seed(154)
 rf_model <- randomForest(
   formula = model_formula,
@@ -93,7 +94,7 @@ rf_model <- randomForest(
   importance = TRUE
 )
 
-# Display model results
+# Model results
 print(rf_model)
 
 # Predict sanction probabilities on the test set
