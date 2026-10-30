@@ -3,8 +3,7 @@ title: "AI Hallucination Cases"
 format: html
 ---
 
-Group members: Ishita Jain, Ahlam Negash, Abigail Minin
-Research Question: Has the number of documented AI hallucination court cases increased over time?
+Group members: Ishita Jain and Abby Minin
 
 GitHub repository: [View our GitHub repository](https://github.com/ishitajain21/stat-learning-group-analysis)
 
@@ -14,85 +13,10 @@ The data come from the AI Hallucination Cases Database maintained by Damien Char
 library(tidyverse)
 
 cases <- read_csv("data/hallucination_cases.csv")
-glimpse(cases)
-```
-
-```{r}
-#Data Visualization 1 
-ggplot(cases, aes(x = `Party(ies)`)) +
-  geom_bar() +
-  coord_flip() +
-  labs(x = "Party", y = "Number of cases", title = "Cases by party")
-```
-
-```{r}
-#Data Visualization 2
-ggplot(cases, aes(x = `Legal Field Primary`)) +
-  geom_bar() +
-  coord_flip() +
-  labs(x = "Legal field", y = "Number of cases", title = "Cases by legal field")
-```
-```{r}
-#Data Visualization 3
-ggplot(cases, aes(x = `Professional Sanction`)) +
-  geom_bar() +
-  labs(x = "Professional sanction", y = "Number of cases", title = "Cases by professional sanction")
-```
-```{r}
-library(dplyr)
-library(lubridate)
-
-cases <- cases %>%
-  mutate(Month = floor_date(as.Date(Date), unit = "month"))
-
-monthly_counts <- cases %>%
-  count(Month, name = "n") 
-
-MonthlyModel <- glm(n ~ Month, data = monthly_counts)
-summary(MonthlyModel)
-
-ggplot(monthly_counts, aes(x = Month, y = n)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = TRUE) +
-  labs(
-    title = "Monthly Cases Over Time (Linear Regression)",
-    x = "Month",
-    y = "Number of Cases"
-  ) +
-  theme_minimal()
-
-PMonthlyModel <- glm(n ~ Month, data = monthly_counts, family=poisson)
-summary(PMonthlyModel)
-
-monthly_counts$predicted <- predict(
-  PMonthlyModel,
-  newdata = monthly_counts,
-  type = "response"
-)
-
-ggplot(monthly_counts, aes(x = Month, y = n)) +
-  geom_point() +
-  geom_line(
-    aes(y = predicted),
-    linewidth = 1
-  ) +
-  labs(
-    title = "Monthly Cases Over Time (Poisson Regression)",
-    x = "Month",
-    y = "Number of Cases"
-  ) +
-  theme_minimal()
-
-
-#Statistical Model
-#model <- glm(n ~ Month, data = cases, family = poisson)
-#summary(model)
-#exp(coef(model))
 ```
 
 
 ```{r}
-cases <- read_csv("data/hallucination_cases.csv")
 knitr::kable(cases |> count(`Professional Sanction`, name = "Cases"))
 model_data <- cases |>
   filter(`Professional Sanction` %in% c("No", "Yes")) |>
@@ -156,4 +80,7 @@ model_formula <- sanction ~ party + jurisdiction + tool + legal_field
 knitr::kable(data.frame(Set = c("Training", "Test"),
                        Cases = c(nrow(train), nrow(test)),
                        Yes_rate = c(mean(train$sanction == "Yes"), mean(test$sanction == "Yes"))), digits = 3)
+```
+```{r}
+
 ```
